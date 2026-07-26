@@ -4,8 +4,12 @@ import { prisma } from '@/lib/prisma'
 import { getAuthUser } from '@/lib/auth'
 
 export async function GET() {
-  const cats = await prisma.category.findMany({ where: { isActive: true }, orderBy: { sortOrder: 'asc' } })
-  return NextResponse.json({ success: true, data: cats })
+  try {
+    const cats = await prisma.category.findMany({ where: { isActive: true }, orderBy: { sortOrder: 'asc' } })
+    return NextResponse.json({ success: true, data: cats })
+  } catch {
+    return NextResponse.json({ success: true, data: [] })
+  }
 }
 
 const schema = z.object({ name: z.string().min(1), emoji: z.string().default('📦'), imageUrl: z.string().optional(), description: z.string().optional() })

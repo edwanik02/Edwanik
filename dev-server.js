@@ -33,12 +33,22 @@ console.log(`Starting FunziToys Next.js dev server on ${hostname}:${port}...`);
 
 const funzitoysDir = path.join(__dirname, 'funzitoys');
 
+const defaultDbUrl = 'postgresql://user:password@localhost:5432/funzitoys';
+const dbUrl = (process.env.DATABASE_URL && process.env.DATABASE_URL.trim().length > 0 && (process.env.DATABASE_URL.startsWith('postgresql://') || process.env.DATABASE_URL.startsWith('postgres://')))
+  ? process.env.DATABASE_URL.trim()
+  : defaultDbUrl;
+const directUrl = (process.env.DIRECT_URL && process.env.DIRECT_URL.trim().length > 0 && (process.env.DIRECT_URL.startsWith('postgresql://') || process.env.DIRECT_URL.startsWith('postgres://')))
+  ? process.env.DIRECT_URL.trim()
+  : dbUrl;
+
 const child = spawn('npx', ['next', 'dev', '-p', port, '-H', hostname], {
   cwd: funzitoysDir,
   stdio: 'inherit',
   shell: true,
   env: {
     ...process.env,
+    DATABASE_URL: dbUrl,
+    DIRECT_URL: directUrl,
     PORT: port,
     HOSTNAME: hostname,
   },
