@@ -43,6 +43,12 @@ function ProductSkeleton() { return <div className="grid grid-cols-2 sm:grid-col
 
 export default async function HomePage() {
   const { settings, cats, featured, newArrivals, banner } = await getData()
+  const bannerTitle = banner?.title ?? 'The Happiest Toy Store Online'
+  const titleParts = bannerTitle.split(' ')
+  const p1 = titleParts.slice(0, 2).join(' ')
+  const p2 = titleParts.slice(2, 3).join(' ')
+  const p3 = titleParts.slice(3).join(' ')
+
   return (
     <>
       <Navbar siteName={settings?.siteName ?? 'FunziToys'} logoUrl={settings?.logoUrl ?? undefined} />
@@ -58,7 +64,7 @@ export default async function HomePage() {
                 <span className="text-sm">✨</span><span className="text-xs font-bold text-yellow-300 uppercase tracking-wider">{banner?.eyebrow ?? 'New Arrivals 2025'}</span>
               </div>
               <h1 className="font-serif text-5xl sm:text-6xl font-bold text-white leading-tight mb-4">
-                {banner?.title.split(' ').slice(0, 2).join(' ') ?? 'The Happiest'}{' '}<em className="text-brand not-italic">{banner?.title.split(' ').slice(2, 3).join(' ') ?? 'Toy'}</em>{' '}{banner?.title.split(' ').slice(3).join(' ') ?? 'Store Online'}
+                {p1}{' '}{p2 && <em className="text-brand not-italic">{p2}</em>}{' '}{p3}
               </h1>
               <p className="text-slate-400 text-lg leading-relaxed mb-8">{banner?.subtitle ?? 'Safe, fun & educational toys for every age. Quality you can trust, joy you can feel.'}</p>
               <div className="flex gap-3 flex-wrap">
