@@ -1,8 +1,15 @@
 import { prisma } from '@/lib/prisma'
 import { formatDate } from '@/utils'
 
+export const dynamic = 'force-dynamic'
+
 export default async function AdminUsersPage() {
-  const customers = await prisma.user.findMany({ where: { role: 'CUSTOMER', deletedAt: null }, orderBy: { createdAt: 'desc' } })
+  let customers: any[] = []
+  try {
+    customers = await prisma.user.findMany({ where: { role: 'CUSTOMER', deletedAt: null }, orderBy: { createdAt: 'desc' } })
+  } catch (err) {
+    console.error('Failed to query admin users:', err)
+  }
   return (
     <div className="space-y-5">
       <div><h1 className="font-serif text-2xl font-bold">👥 All Customers</h1><p className="text-sm text-slate-500">{customers.length} registered customers</p></div>

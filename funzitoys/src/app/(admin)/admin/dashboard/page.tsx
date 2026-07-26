@@ -11,6 +11,7 @@ import { ORDER_STATUS_COLORS } from '@/constants'
 import { Users, Package, ShoppingBag, DollarSign, Store, ClipboardList } from 'lucide-react'
 import type { Metadata } from 'next'
 
+export const dynamic = 'force-dynamic'
 export const metadata: Metadata = { title: 'Admin Dashboard' }
 
 export default async function AdminDashboardPage() {
@@ -18,24 +19,38 @@ export default async function AdminDashboardPage() {
   if (!token) redirect('/admin/login')
   try { verifyAccessToken(token) } catch { redirect('/admin/login') }
 
-  const [totalOrders, totalProducts, totalCustomers, totalOwners, pendingReqs, revenue, monthlySales, recentOrders] = await Promise.all([
-    prisma.order.count(),
-    prisma.product.count({ where: { deletedAt: null } }),
-    prisma.user.count({ where: { role: 'CUSTOMER' } }),
-    prisma.user.count({ where: { role: 'OWNER' } }),
-    prisma.ownerRequest.count({ where: { status: 'PENDING' } }),
-    prisma.order.aggregate({ where: { paymentStatus: 'PAID' }, _sum: { total: true } }),
-    getMonthlySales(),
-    prisma.order.findMany({
-      include: { customer: { include: { user: { select: { name: true } } } }, items: true },
-      orderBy: { createdAt: 'desc' }, take: 5,
-    }),
-  ])
+  let totalOrders = 0, totalProducts = 0, totalCustomers = 0, totalOwners = 0, pendingReqs = 0, revenue = { _sum: { total: null } }, monthlySales: any[] = [], recentOrders: any[] = [], topOwners: any[] = []
 
-  const topOwners = await prisma.owner.findMany({
-    include: { user: { select: { name: true } }, _count: { select: { products: true } } },
-    take: 5,
-  })
+  try {
+    const [tOrders, tProducts, tCust, tOwn, pReqs, rev, mSales, rOrders] = await Promise.all([
+      prisma.order.count().catch(() => 0),
+      prisma.product.count({ where: { deletedAt: null } }).catch(() => 0),
+      prisma.user.count({ where: { role: 'CUSTOMER' } }).catch(() => 0),
+      prisma.user.count({ where: { role: 'OWNER' } }).catch(() => 0),
+      prisma.ownerRequest.count({ where: { status: 'PENDING' } }).catch(() => 0),
+      prisma.order.aggregate({ where: { paymentStatus: 'PAID' }, _sum: { total: true } }).catch(() => ({ _sum: { total: null } })),
+      getMonthlySales().catch(() => []),
+      prisma.order.findMany({
+        include: { customer: { include: { user: { select: { name: true } } } }, items: true },
+        orderBy: { createdAt: 'desc' }, take: 5,
+      }).catch(() => []),
+    ])
+    totalOrders = tOrders
+    totalProducts = tProducts
+    totalCustomers = tCust
+    totalOwners = tOwn
+    pendingReqs = pReqs
+    revenue = rev as any
+    monthlySales = mSales
+    recentOrders = rOrders
+
+    topOwners = await prisma.owner.findMany({
+      include: { user: { select: { name: true } }, _count: { select: { products: true } } },
+      take: 5,
+    }).catch(() => [])
+  } catch (err) {
+    console.error('Failed to load admin dashboard:', err)
+  }
 
   return (
     <div className="space-y-6">

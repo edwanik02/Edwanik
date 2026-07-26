@@ -5,19 +5,27 @@ import { prisma } from '@/lib/prisma'
 import { formatCurrency, formatDate } from '@/utils'
 import { ORDER_STATUS_COLORS } from '@/constants'
 
+export const dynamic = 'force-dynamic'
+
 export default async function OwnerOrdersPage() {
   const token = (await cookies()).get('access_token')?.value
   if (!token) redirect('/owner/login')
   let user: ReturnType<typeof verifyAccessToken>
   try { user = verifyAccessToken(token) } catch { redirect('/owner/login') }
-  const owner = await prisma.owner.findUnique({ where: { userId: user.sub ?? user.id } })
-  if (!owner) redirect('/owner/login')
 
-  const orders = await prisma.order.findMany({
-    where: { items: { some: { product: { ownerId: owner.id } } } },
-    include: { customer: { include: { user: { select: { name: true, email: true } } } }, items: { include: { product: true } } },
-    orderBy: { createdAt: 'desc' },
-  })
+  let orders: any[] = []
+  try {
+    const owner = await prisma.owner.findUnique({ where: { userId: user.sub ?? user.id } }).catch(() => null)
+    if (!owner) redirect('/owner/login')
+
+    orders = await prisma.order.findMany({
+      where: { items: { some: { product: { ownerId: owner.id } } } },
+      include: { customer: { include: { user: { select: { name: true, email: true } } } }, items: { include: { product: true } } },
+      orderBy: { createdAt: 'desc' },
+    }).catch(() => [])
+  } catch (err) {
+    console.error('Failed to load owner orders:', err)
+  }
 
   return (
     <div className="space-y-5">
@@ -34,14 +42,14 @@ export default async function OwnerOrdersPage() {
                 ))}
               </tr></thead>
               <tbody>
-                {orders.map(o => (
+                {orders.map((o: any) => (
                   <tr key={o.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                     <td className="py-3 px-4 text-sm font-bold text-slate-700">{o.orderNumber}</td>
                     <td className="py-3 px-4">
-                      <p className="text-sm font-semibold">{o.customer.user.name}</p>
-                      <p className="text-xs text-slate-400">{o.customer.user.email}</p>
+                      <p className="text-sm font-semibold">{o.customer?.user?.name}</p>
+                      <p className="text-xs text-slate-400">{o.customer?.user?.email}</p>
                     </td>
-                    <td className="py-3 px-4 text-sm text-slate-500">{o.items.map(i => `${i.productName} ×${i.quantity}`).join(', ')}</td>
+                    <td className="py-3 px-4 text-sm text-slate-500">{(o.items ?? []).map((i: any) => `${i.productName} ×${i.quantity}`).join(', ')}</td>
                     <td className="py-3 px-4 text-sm font-bold text-brand">{formatCurrency(Number(o.total))}</td>
                     <td className="py-3 px-4"><span className={`text-xs font-bold px-2 py-1 rounded-full ${ORDER_STATUS_COLORS[o.status] ?? 'bg-slate-100 text-slate-600'}`}>{o.status}</span></td>
                     <td className="py-3 px-4"><span className={`text-xs font-bold px-2 py-1 rounded-full ${o.paymentStatus === 'PAID' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{o.paymentStatus}</span></td>

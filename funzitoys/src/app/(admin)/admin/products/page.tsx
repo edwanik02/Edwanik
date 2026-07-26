@@ -3,12 +3,19 @@ import Image from 'next/image'
 import { formatCurrency, formatDate } from '@/utils'
 import { BADGE_COLORS } from '@/constants'
 
+export const dynamic = 'force-dynamic'
+
 export default async function AdminProductsPage() {
-  const products = await prisma.product.findMany({
-    where: { deletedAt: null },
-    include: { images: { where: { isPrimary: true } }, category: true, owner: { include: { user: { select: { name: true } } } }, inventory: true },
-    orderBy: { createdAt: 'desc' },
-  })
+  let products: any[] = []
+  try {
+    products = await prisma.product.findMany({
+      where: { deletedAt: null },
+      include: { images: { where: { isPrimary: true } }, category: true, owner: { include: { user: { select: { name: true } } } }, inventory: true },
+      orderBy: { createdAt: 'desc' },
+    })
+  } catch (err) {
+    console.error('Failed to query admin products:', err)
+  }
 
   return (
     <div className="space-y-5">

@@ -1,11 +1,18 @@
 import { prisma } from '@/lib/prisma'
 import { formatCurrency, formatDate } from '@/utils'
 
+export const dynamic = 'force-dynamic'
+
 export default async function AdminOrdersPage() {
-  const orders = await prisma.order.findMany({
-    include: { customer: { include: { user: { select: { name: true, email: true } } } }, items: true, payment: true },
-    orderBy: { createdAt: 'desc' },
-  })
+  let orders: any[] = []
+  try {
+    orders = await prisma.order.findMany({
+      include: { customer: { include: { user: { select: { name: true, email: true } } } }, items: true, payment: true },
+      orderBy: { createdAt: 'desc' },
+    })
+  } catch (err) {
+    console.error('Failed to query admin orders:', err)
+  }
   const statusColors: Record<string, string> = { PENDING: 'bg-yellow-100 text-yellow-700', CONFIRMED: 'bg-blue-100 text-blue-700', PROCESSING: 'bg-indigo-100 text-indigo-700', SHIPPED: 'bg-cyan-100 text-cyan-700', DELIVERED: 'bg-green-100 text-green-700', CANCELLED: 'bg-red-100 text-red-700', REFUNDED: 'bg-gray-100 text-gray-700' }
 
   return (

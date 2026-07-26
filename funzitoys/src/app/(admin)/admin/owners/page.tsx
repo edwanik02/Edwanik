@@ -2,11 +2,18 @@ import { prisma } from '@/lib/prisma'
 import Link from 'next/link'
 import { formatDate } from '@/utils'
 
+export const dynamic = 'force-dynamic'
+
 export default async function AdminOwnersPage() {
-  const owners = await prisma.owner.findMany({
-    include: { user: true, permissions: true, _count: { select: { products: true } } },
-    orderBy: { createdAt: 'desc' },
-  })
+  let owners: any[] = []
+  try {
+    owners = await prisma.owner.findMany({
+      include: { user: true, permissions: true, _count: { select: { products: true } } },
+      orderBy: { createdAt: 'desc' },
+    })
+  } catch (err) {
+    console.error('Failed to query owners:', err)
+  }
 
   return (
     <div className="space-y-5">

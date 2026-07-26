@@ -8,27 +8,42 @@ import { getMonthlySales } from '@/services/analytics.service'
 import { formatCurrency } from '@/utils'
 import { DollarSign, ShoppingBag, Users, TrendingUp } from 'lucide-react'
 
+export const dynamic = 'force-dynamic'
+
 export default async function OwnerAnalyticsPage() {
   const token = (await cookies()).get('access_token')?.value
   if (!token) redirect('/owner/login')
   let user: ReturnType<typeof verifyAccessToken>
   try { user = verifyAccessToken(token) } catch { redirect('/owner/login') }
-  const owner = await prisma.owner.findUnique({ where: { userId: user.sub ?? user.id } })
-  if (!owner) redirect('/owner/login')
 
-  const ownerWhere = { items: { some: { product: { ownerId: owner.id } } } }
-  const [orderAgg, orderCount, customerGroups, monthlySales, topProducts, statusCounts] = await Promise.all([
-    prisma.order.aggregate({ where: { ...ownerWhere, paymentStatus: 'PAID' }, _sum: { total: true } }),
-    prisma.order.count({ where: ownerWhere }),
-    prisma.order.groupBy({ by: ['customerId'], where: ownerWhere }),
-    getMonthlySales(owner.id),
-    prisma.product.findMany({
-      where: { ownerId: owner.id, deletedAt: null },
-      include: { images: { where: { isPrimary: true } }, _count: { select: { orderItems: true, reviews: true } } },
-      orderBy: { orderItems: { _count: 'desc' } }, take: 5,
-    }),
-    prisma.order.groupBy({ by: ['status'], where: ownerWhere, _count: true }),
-  ])
+  let orderAgg: any = { _sum: { total: 0 } }, orderCount = 0, customerGroups: any[] = [], monthlySales: any[] = [], topProducts: any[] = [], statusCounts: any[] = []
+
+  try {
+    const owner = await prisma.owner.findUnique({ where: { userId: user.sub ?? user.id } }).catch(() => null)
+    if (!owner) redirect('/owner/login')
+
+    const ownerWhere = { items: { some: { product: { ownerId: owner.id } } } }
+    const res = await Promise.all([
+      prisma.order.aggregate({ where: { ...ownerWhere, paymentStatus: 'PAID' }, _sum: { total: true } }).catch(() => ({ _sum: { total: 0 } })),
+      prisma.order.count({ where: ownerWhere }).catch(() => 0),
+      prisma.order.groupBy({ by: ['customerId'], where: ownerWhere }).catch(() => []),
+      getMonthlySales(owner.id).catch(() => []),
+      prisma.product.findMany({
+        where: { ownerId: owner.id, deletedAt: null },
+        include: { images: { where: { isPrimary: true } }, _count: { select: { orderItems: true, reviews: true } } },
+        orderBy: { orderItems: { _count: 'desc' } }, take: 5,
+      }).catch(() => []),
+      prisma.order.groupBy({ by: ['status'], where: ownerWhere, _count: true }).catch(() => []),
+    ])
+    orderAgg = res[0]
+    orderCount = res[1]
+    customerGroups = res[2]
+    monthlySales = res[3]
+    topProducts = res[4]
+    statusCounts = res[5]
+  } catch (err) {
+    console.error('Failed to load owner analytics:', err)
+  }
 
   const revenue = Number(orderAgg._sum.total ?? 0)
   const aov = orderCount > 0 ? revenue / orderCount : 0

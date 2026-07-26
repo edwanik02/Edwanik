@@ -4,18 +4,26 @@ import { verifyAccessToken } from '@/lib/jwt'
 import { prisma } from '@/lib/prisma'
 import { formatDate } from '@/utils'
 
+export const dynamic = 'force-dynamic'
+
 export default async function OwnerCustomersPage() {
   const token = (await cookies()).get('access_token')?.value
   if (!token) redirect('/owner/login')
   let user: ReturnType<typeof verifyAccessToken>
   try { user = verifyAccessToken(token) } catch { redirect('/owner/login') }
-  const owner = await prisma.owner.findUnique({ where: { userId: user.sub ?? user.id } })
-  if (!owner) redirect('/owner/login')
 
-  const orders = await prisma.order.findMany({
-    where: { items: { some: { product: { ownerId: owner.id } } } },
-    include: { customer: { include: { user: { select: { name: true, email: true, mobile: true, createdAt: true } } } } },
-  })
+  let orders: any[] = []
+  try {
+    const owner = await prisma.owner.findUnique({ where: { userId: user.sub ?? user.id } }).catch(() => null)
+    if (!owner) redirect('/owner/login')
+
+    orders = await prisma.order.findMany({
+      where: { items: { some: { product: { ownerId: owner.id } } } },
+      include: { customer: { include: { user: { select: { name: true, email: true, mobile: true, createdAt: true } } } } },
+    }).catch(() => [])
+  } catch (err) {
+    console.error('Failed to load owner customers:', err)
+  }
 
   const custMap = new Map<string, { name: string; email: string; mobile: string | null; joined: Date; orderCount: number; totalSpent: number }>()
   orders.forEach(o => {

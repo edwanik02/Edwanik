@@ -14,39 +14,54 @@ export const dynamic = 'force-dynamic'
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
-  const p = await prisma.product.findUnique({ where: { slug }, include: { images: { where: { isPrimary: true } } } })
-  if (!p) return { title: 'Product Not Found' }
-  return { title: `${p.name} – FunziToys`, description: p.description ?? undefined, openGraph: { images: p.images[0]?.url ? [p.images[0].url] : [] } }
+  try {
+    const p = await prisma.product.findUnique({ where: { slug }, include: { images: { where: { isPrimary: true } } } })
+    if (!p) return { title: 'Product Not Found' }
+    return { title: `${p.name} – FunziToys`, description: p.description ?? undefined, openGraph: { images: p.images[0]?.url ? [p.images[0].url] : [] } }
+  } catch {
+    return { title: 'Product – FunziToys' }
+  }
 }
 
 export default async function ProductPage({ params }: Props) {
   const { slug } = await params
-  const [productRaw, settings] = await Promise.all([
-    prisma.product.findUnique({
-      where: { slug, isActive: true, deletedAt: null },
-      include: { images: { orderBy: { sortOrder: 'asc' } }, category: true, inventory: true, owner: { select: { id: true, storeName: true, logoUrl: true, whatsappNum: true } }, reviews: { include: { customer: { include: { user: { select: { name: true, avatarUrl: true } } } } }, orderBy: { createdAt: 'desc' }, take: 10 }, _count: { select: { reviews: true } } },
-    }),
-    prisma.siteSettings.findFirst(),
-  ])
+  let productRaw: any = null
+  let settings: any = null
+  try {
+    const res = await Promise.all([
+      prisma.product.findUnique({
+        where: { slug, isActive: true, deletedAt: null },
+        include: { images: { orderBy: { sortOrder: 'asc' } }, category: true, inventory: true, owner: { select: { id: true, storeName: true, logoUrl: true, whatsappNum: true } }, reviews: { include: { customer: { include: { user: { select: { name: true, avatarUrl: true } } } } }, orderBy: { createdAt: 'desc' }, take: 10 }, _count: { select: { reviews: true } } },
+      }).catch(() => null),
+      prisma.siteSettings.findFirst().catch(() => null),
+    ])
+    productRaw = res[0]
+    settings = res[1]
+  } catch (err) {
+    console.error('Failed to query product detail:', err)
+  }
   if (!productRaw) notFound()
 
-  const relatedRaw = await prisma.product.findMany({
-    where: { categoryId: productRaw.categoryId, isActive: true, id: { not: productRaw.id }, deletedAt: null },
-    include: { images: { where: { isPrimary: true } }, category: true, inventory: true, owner: { select: { id: true, storeName: true, logoUrl: true } }, _count: { select: { reviews: true } } },
-    take: 4,
-  })
+  let relatedRaw: any[] = []
+  try {
+    relatedRaw = await prisma.product.findMany({
+      where: { categoryId: productRaw.categoryId, isActive: true, id: { not: productRaw.id }, deletedAt: null },
+      include: { images: { where: { isPrimary: true } }, category: true, inventory: true, owner: { select: { id: true, storeName: true, logoUrl: true } }, _count: { select: { reviews: true } } },
+      take: 4,
+    }).catch(() => [])
+  } catch {}
 
-  const toProduct = (p: typeof productRaw) => ({
+  const toProduct = (p: any) => ({
     ...p, price: Number(p.price), mrpPrice: p.mrpPrice ? Number(p.mrpPrice) : undefined, badge: (p.badge as BadgeType) ?? undefined, reviewCount: p._count.reviews, description: p.description ?? undefined,
-    images: p.images.map(img => ({ ...img, alt: img.alt ?? undefined })), inventory: p.inventory ? { quantity: p.inventory.quantity, reserved: p.inventory.reserved, lowStockAt: p.inventory.lowStockAt } : undefined,
+    images: (p.images ?? []).map((img: any) => ({ ...img, alt: img.alt ?? undefined })), inventory: p.inventory ? { quantity: p.inventory.quantity, reserved: p.inventory.reserved, lowStockAt: p.inventory.lowStockAt } : undefined,
     owner: { id: p.owner.id, storeName: p.owner.storeName, logoUrl: p.owner.logoUrl ?? undefined }, category: { ...p.category, imageUrl: p.category.imageUrl ?? undefined, description: p.category.description ?? undefined },
     createdAt: p.createdAt.toISOString(), updatedAt: p.updatedAt.toISOString(),
   })
 
   const product = toProduct(productRaw)
-  const related = relatedRaw.map(p => ({
+  const related = relatedRaw.map((p: any) => ({
     ...p, price: Number(p.price), mrpPrice: p.mrpPrice ? Number(p.mrpPrice) : undefined, badge: (p.badge as BadgeType) ?? undefined, reviewCount: p._count.reviews, description: p.description ?? undefined,
-    images: p.images.map(img => ({ ...img, alt: img.alt ?? undefined })), inventory: p.inventory ? { quantity: p.inventory.quantity, reserved: p.inventory.reserved, lowStockAt: p.inventory.lowStockAt } : undefined,
+    images: (p.images ?? []).map((img: any) => ({ ...img, alt: img.alt ?? undefined })), inventory: p.inventory ? { quantity: p.inventory.quantity, reserved: p.inventory.reserved, lowStockAt: p.inventory.lowStockAt } : undefined,
     owner: { id: p.owner.id, storeName: p.owner.storeName, logoUrl: p.owner.logoUrl ?? undefined }, category: { ...p.category, imageUrl: p.category.imageUrl ?? undefined, description: p.category.description ?? undefined },
     createdAt: p.createdAt.toISOString(), updatedAt: p.updatedAt.toISOString(),
   }))
@@ -67,8 +82,8 @@ export default async function ProductPage({ params }: Props) {
             <div className="mt-12">
               <h2 className="font-serif text-xl font-bold mb-5">You May Also Like</h2>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {related.map(p => {
-                  const img = p.images.find(i => i.isPrimary)
+                {related.map((p: any) => {
+                  const img = (p.images ?? []).find((i: any) => i.isPrimary)
                   return (
                     <Link key={p.id} href={`/products/${p.slug}`} className="group bg-white rounded-2xl border border-slate-200 overflow-hidden hover:border-brand hover:shadow-md transition-all">
                       <div className="aspect-square bg-slate-50 overflow-hidden">{img ? <Image src={img.url} alt={p.name} width={200} height={200} className="w-full h-full object-cover group-hover:scale-105 transition-transform" /> : <div className="w-full h-full flex items-center justify-center text-5xl opacity-20">📦</div>}</div>

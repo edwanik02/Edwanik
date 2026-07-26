@@ -11,6 +11,7 @@ import { ORDER_STATUS_COLORS } from '@/constants'
 import { Package, ShoppingBag, Users, DollarSign } from 'lucide-react'
 import type { Metadata } from 'next'
 
+export const dynamic = 'force-dynamic'
 export const metadata: Metadata = { title: 'Owner Dashboard' }
 
 export default async function OwnerDashboardPage() {
@@ -19,28 +20,40 @@ export default async function OwnerDashboardPage() {
   let user: ReturnType<typeof verifyAccessToken>
   try { user = verifyAccessToken(token) } catch { redirect('/owner/login') }
 
-  const owner = await prisma.owner.findUnique({ where: { userId: user.sub ?? user.id }, include: { permissions: true } })
-  if (!owner) redirect('/owner/login')
+  let owner: any = null
+  let productCount = 0, orderAgg = { _sum: { total: null }, _count: 0 }, customerGroups: any[] = [], monthlySales: any[] = [], recentOrders: any[] = [], topProducts: any[] = []
 
-  const ownerWhere = { items: { some: { product: { ownerId: owner.id } } } }
+  try {
+    owner = await prisma.owner.findUnique({ where: { userId: user.sub ?? user.id }, include: { permissions: true } }).catch(() => null)
+    if (!owner) redirect('/owner/login')
 
-  const [productCount, orderAgg, customerGroups, monthlySales, recentOrders] = await Promise.all([
-    prisma.product.count({ where: { ownerId: owner.id, deletedAt: null, isActive: true } }),
-    prisma.order.aggregate({ where: { ...ownerWhere, paymentStatus: 'PAID' }, _sum: { total: true }, _count: true }),
-    prisma.order.groupBy({ by: ['customerId'], where: ownerWhere }),
-    getMonthlySales(owner.id),
-    prisma.order.findMany({
-      where: ownerWhere,
-      include: { customer: { include: { user: { select: { name: true, email: true } } } }, items: { include: { product: { include: { images: { where: { isPrimary: true } } } } } } },
-      orderBy: { createdAt: 'desc' }, take: 5,
-    }),
-  ])
+    const ownerWhere = { items: { some: { product: { ownerId: owner.id } } } }
 
-  const topProducts = await prisma.product.findMany({
-    where: { ownerId: owner.id, deletedAt: null },
-    include: { images: { where: { isPrimary: true } }, _count: { select: { orderItems: true } } },
-    orderBy: { orderItems: { _count: 'desc' } }, take: 5,
-  })
+    const [pCount, oAgg, cGroups, mSales, rOrders] = await Promise.all([
+      prisma.product.count({ where: { ownerId: owner.id, deletedAt: null, isActive: true } }).catch(() => 0),
+      prisma.order.aggregate({ where: { ...ownerWhere, paymentStatus: 'PAID' }, _sum: { total: true }, _count: true }).catch(() => ({ _sum: { total: null }, _count: 0 })),
+      prisma.order.groupBy({ by: ['customerId'], where: ownerWhere }).catch(() => []),
+      getMonthlySales(owner.id).catch(() => []),
+      prisma.order.findMany({
+        where: ownerWhere,
+        include: { customer: { include: { user: { select: { name: true, email: true } } } }, items: { include: { product: { include: { images: { where: { isPrimary: true } } } } } } },
+        orderBy: { createdAt: 'desc' }, take: 5,
+      }).catch(() => []),
+    ])
+    productCount = pCount
+    orderAgg = oAgg as any
+    customerGroups = cGroups
+    monthlySales = mSales
+    recentOrders = rOrders
+
+    topProducts = await prisma.product.findMany({
+      where: { ownerId: owner.id, deletedAt: null },
+      include: { images: { where: { isPrimary: true } }, _count: { select: { orderItems: true } } },
+      orderBy: { orderItems: { _count: 'desc' } }, take: 5,
+    }).catch(() => [])
+  } catch (err) {
+    console.error('Failed to load owner dashboard:', err)
+  }
 
   return (
     <div className="space-y-6">

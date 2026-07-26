@@ -5,18 +5,33 @@ import { getMonthlySales } from '@/services/analytics.service'
 import { formatCurrency, formatDate } from '@/utils'
 import { DollarSign, ShoppingBag, Users, Store } from 'lucide-react'
 
+export const dynamic = 'force-dynamic'
+
 export default async function AdminAnalyticsPage() {
-  const [totalOrders, totalCustomers, totalOwners, totalProducts, revenue, monthlySales, topOwners, recentOrders] = await Promise.all([
-    prisma.order.count(),
-    prisma.user.count({ where: { role: 'CUSTOMER' } }),
-    prisma.user.count({ where: { role: 'OWNER' } }),
-    prisma.product.count({ where: { deletedAt: null } }),
-    prisma.order.aggregate({ where: { paymentStatus: 'PAID' }, _sum: { total: true } }),
-    getMonthlySales(),
-    prisma.owner.findMany({ include: { user: { select: { name: true } }, _count: { select: { products: true } } }, take: 5 }),
-    prisma.order.findMany({ include: { customer: { include: { user: { select: { name: true } } } }, items: true }, orderBy: { createdAt: 'desc' }, take: 5 }),
-  ])
-  const rev = Number(revenue._sum.total ?? 0)
+  let totalOrders = 0, totalCustomers = 0, totalOwners = 0, totalProducts = 0, revenue: any = { _sum: { total: 0 } }, monthlySales: any[] = [], topOwners: any[] = [], recentOrders: any[] = []
+  try {
+    const res = await Promise.all([
+      prisma.order.count().catch(() => 0),
+      prisma.user.count({ where: { role: 'CUSTOMER' } }).catch(() => 0),
+      prisma.user.count({ where: { role: 'OWNER' } }).catch(() => 0),
+      prisma.product.count({ where: { deletedAt: null } }).catch(() => 0),
+      prisma.order.aggregate({ where: { paymentStatus: 'PAID' }, _sum: { total: true } }).catch(() => ({ _sum: { total: 0 } })),
+      getMonthlySales().catch(() => []),
+      prisma.owner.findMany({ include: { user: { select: { name: true } }, _count: { select: { products: true } } }, take: 5 }).catch(() => []),
+      prisma.order.findMany({ include: { customer: { include: { user: { select: { name: true } } } }, items: true }, orderBy: { createdAt: 'desc' }, take: 5 }).catch(() => []),
+    ])
+    totalOrders = res[0]
+    totalCustomers = res[1]
+    totalOwners = res[2]
+    totalProducts = res[3]
+    revenue = res[4]
+    monthlySales = res[5]
+    topOwners = res[6]
+    recentOrders = res[7]
+  } catch (err) {
+    console.error('Failed to query admin analytics:', err)
+  }
+  const rev = Number(revenue._sum?.total ?? 0)
 
   return (
     <div className="space-y-6">

@@ -7,7 +7,12 @@ export const metadata: Metadata = { title: 'About Us – FunziToys' }
 export const dynamic = 'force-dynamic'
 
 export default async function AboutPage() {
-  const settings = await prisma.siteSettings.findFirst()
+  let settings = null
+  try {
+    settings = await prisma.siteSettings.findFirst()
+  } catch (err) {
+    console.error('Failed to fetch site settings:', err)
+  }
   return (
     <>
       <Navbar siteName={settings?.siteName ?? 'FunziToys'} logoUrl={settings?.logoUrl ?? undefined} />

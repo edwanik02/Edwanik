@@ -12,26 +12,31 @@ export const metadata: Metadata = { title: 'FunziToys – Fun For Everyone', des
 export const dynamic = 'force-dynamic'
 
 async function getData() {
-  const [settings, cats, featuredRaw, newRaw, banner] = await Promise.all([
-    prisma.siteSettings.findFirst(),
-    prisma.category.findMany({ where: { isActive: true }, orderBy: { sortOrder: 'asc' } }),
-    prisma.product.findMany({ where: { isActive: true, isApproved: true, deletedAt: null }, include: { images: { orderBy: { sortOrder: 'asc' } }, category: true, inventory: true, owner: { select: { id: true, storeName: true, logoUrl: true } }, _count: { select: { reviews: true } } }, orderBy: { createdAt: 'desc' }, take: 8 }),
-    prisma.product.findMany({ where: { isActive: true, isApproved: true, deletedAt: null, isNew: true }, include: { images: { orderBy: { sortOrder: 'asc' } }, category: true, inventory: true, owner: { select: { id: true, storeName: true, logoUrl: true } }, _count: { select: { reviews: true } } }, orderBy: { createdAt: 'desc' }, take: 4 }),
-    prisma.heroBanner.findFirst({ where: { isActive: true }, orderBy: { sortOrder: 'asc' } }),
-  ])
-  const toProduct = (p: typeof featuredRaw[0]): Product => ({
-    ...p, price: Number(p.price), mrpPrice: p.mrpPrice ? Number(p.mrpPrice) : undefined, badge: (p.badge as BadgeType) ?? undefined, reviewCount: p._count.reviews,
-    createdAt: p.createdAt.toISOString(), updatedAt: p.updatedAt.toISOString(), images: p.images.map(img => ({ ...img, alt: img.alt ?? undefined })),
-    description: p.description ?? undefined, inventory: p.inventory ? { quantity: p.inventory.quantity, reserved: p.inventory.reserved, lowStockAt: p.inventory.lowStockAt } : undefined,
-    owner: { id: p.owner.id, storeName: p.owner.storeName, logoUrl: p.owner.logoUrl ?? undefined },
-    category: { ...p.category, imageUrl: p.category.imageUrl ?? undefined, description: p.category.description ?? undefined },
-  })
-  const categories: Category[] = cats.map(c => ({
-    ...c,
-    imageUrl: c.imageUrl ?? undefined,
-    description: c.description ?? undefined,
-  }))
-  return { settings, cats: categories, featured: featuredRaw.map(toProduct), newArrivals: newRaw.map(toProduct), banner }
+  try {
+    const [settings, cats, featuredRaw, newRaw, banner] = await Promise.all([
+      prisma.siteSettings.findFirst().catch(() => null),
+      prisma.category.findMany({ where: { isActive: true }, orderBy: { sortOrder: 'asc' } }).catch(() => []),
+      prisma.product.findMany({ where: { isActive: true, isApproved: true, deletedAt: null }, include: { images: { orderBy: { sortOrder: 'asc' } }, category: true, inventory: true, owner: { select: { id: true, storeName: true, logoUrl: true } }, _count: { select: { reviews: true } } }, orderBy: { createdAt: 'desc' }, take: 8 }).catch(() => []),
+      prisma.product.findMany({ where: { isActive: true, isApproved: true, deletedAt: null, isNew: true }, include: { images: { orderBy: { sortOrder: 'asc' } }, category: true, inventory: true, owner: { select: { id: true, storeName: true, logoUrl: true } }, _count: { select: { reviews: true } } }, orderBy: { createdAt: 'desc' }, take: 4 }).catch(() => []),
+      prisma.heroBanner.findFirst({ where: { isActive: true }, orderBy: { sortOrder: 'asc' } }).catch(() => null),
+    ])
+    const toProduct = (p: any): Product => ({
+      ...p, price: Number(p.price), mrpPrice: p.mrpPrice ? Number(p.mrpPrice) : undefined, badge: (p.badge as BadgeType) ?? undefined, reviewCount: p._count?.reviews ?? 0,
+      createdAt: p.createdAt ? new Date(p.createdAt).toISOString() : new Date().toISOString(), updatedAt: p.updatedAt ? new Date(p.updatedAt).toISOString() : new Date().toISOString(), images: (p.images ?? []).map((img: any) => ({ ...img, alt: img.alt ?? undefined })),
+      description: p.description ?? undefined, inventory: p.inventory ? { quantity: p.inventory.quantity, reserved: p.inventory.reserved, lowStockAt: p.inventory.lowStockAt } : undefined,
+      owner: { id: p.owner?.id, storeName: p.owner?.storeName, logoUrl: p.owner?.logoUrl ?? undefined },
+      category: { ...p.category, imageUrl: p.category?.imageUrl ?? undefined, description: p.category?.description ?? undefined },
+    })
+    const categories: Category[] = cats.map((c: any) => ({
+      ...c,
+      imageUrl: c.imageUrl ?? undefined,
+      description: c.description ?? undefined,
+    }))
+    return { settings, cats: categories, featured: featuredRaw.map(toProduct), newArrivals: newRaw.map(toProduct), banner }
+  } catch (err) {
+    console.error('Failed to fetch home page data:', err)
+    return { settings: null, cats: [], featured: [], newArrivals: [], banner: null }
+  }
 }
 
 function ProductSkeleton() { return <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">{Array(8).fill(0).map((_, i) => <div key={i} className="rounded-2xl bg-slate-100 animate-pulse aspect-[4/5]" />)}</div> }

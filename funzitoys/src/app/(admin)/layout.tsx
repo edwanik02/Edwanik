@@ -4,7 +4,12 @@ import { prisma } from '@/lib/prisma'
 export const dynamic = 'force-dynamic'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const reqCount = await prisma.ownerRequest.count({ where: { status: 'PENDING' } })
+  let reqCount = 0
+  try {
+    reqCount = await prisma.ownerRequest.count({ where: { status: 'PENDING' } })
+  } catch (err) {
+    console.error('Failed to query pending requests count:', err)
+  }
   return (
     <div className="flex min-h-screen bg-slate-50">
       <DashboardSidebar reqCount={reqCount} />
