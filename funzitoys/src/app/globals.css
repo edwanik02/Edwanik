@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --p: #FF6B35;
+  --pd: #D94F1E;
+  --pl: #FF9A72;
+  --pp: #FFF2EC;
+}
+
+@layer base {
+  *,*::before,*::after { box-sizing: border-box }
+  ::-webkit-scrollbar { width: 4px; height: 4px }
+  ::-webkit-scrollbar-thumb { background: var(--p); border-radius: 2px }
+  html { scroll-behavior: smooth }
+}
+
+@layer utilities {
+  .font-serif { font-family: var(--font-playfair), Georgia, serif }
+  .font-sans { font-family: var(--font-jakarta), system-ui, sans-serif }
+  .text-brand { color: var(--p) }
+  .bg-brand { background-color: var(--p) }
+  .border-brand { border-color: var(--p) }
+  .ring-brand { --tw-ring-color: var(--p) }
+}
